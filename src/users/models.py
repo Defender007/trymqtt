@@ -20,11 +20,12 @@ class User(AbstractUser):
 class UserProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    reader_uid = models.CharField(max_length=128)
     profile_image = models.ImageField(upload_to=upload_image, blank=True, null=True)
     meal_category = models.PositiveSmallIntegerField(default=1)
     department = models.CharField(max_length=225)
 
     def __str__(self) -> str:
-        return self.user.name
+        return self.user.username
     
     
