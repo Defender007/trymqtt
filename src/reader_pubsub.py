@@ -23,7 +23,7 @@ from users.models import User, UserProfile
 
 TOPIC = 'orinlakantobad'
 ACCESS_GRANTED = "ACCESS GRANTED"
-ACCESS_DENIED = "ACCESS_DENIED"
+ACCESS_DENIED = "ACCESS DENIED"
 mqtt_broker = 'broker.hivemq.com'
 # mqtt_broker = 'mqtt.eclipseprojects.io'
 client = mqtt.Client('apiMonitor')
@@ -31,54 +31,50 @@ client.connect(mqtt_broker)
 
 def on_message(client, userdata, message):
     reader_message = message.payload.decode("UTF-8");
-    # if reader_message.startswith("ACCESS_"):
-    #     print("***READER",reader_message)
     print(f'Recieved message: {str(message.payload.decode("utf-8"))}')
-    if not reader_message.startswith("ACCESS_"):
+    if not reader_message.startswith("ACCESS"):
         parsed_message = json.loads(reader_message)
-        print("Door Payload", parsed_message)
         reader_uid = parsed_message['uid']
         reader_username = parsed_message['username']
-        print("***Reader Username***: ", reader_username)
         current_user = User.objects.filter(username=reader_username).first()
-        print("***Current User***: ", current_user.pk)
         user_profile = None
         if current_user:
             user_profile = UserProfile.objects.filter(user=current_user.pk).first()
+            if user_profile is None:
+                client.publish(TOPIC, ACCESS_DENIED)
+                print("***->RETURNING.... NO USER PROFILE!")
+                return
             print("***User Profile***: ", user_profile)
             try: 
                 today = timezone.now().date()
-                # user_transaction = Transaction.objects.filter(reader_uid=reader_uid,date=datetime.now()).first()
-                user_transaction = Transaction.objects.get(reader_uid=reader_uid,date__date=today) #date__date=date.today()
+                user_transaction = Transaction.objects.get(reader_uid=reader_uid,date__date=today)
                 print("THIS IS THE TRANSACTION OBJECT:", user_transaction)
                 swipe_count = user_transaction.swipe_count
                 meal_category = user_transaction.user.meal_category
-                if swipe_count <= meal_category:
+                if swipe_count < meal_category:
                     swipe_count += 1
                     user_transaction.swipe_count = swipe_count
                     user_transaction.save()
                     client.publish(TOPIC, ACCESS_GRANTED)
+                    print("***->RETURNING.... ENJOY YOUR MEAL!")
+                    return
                 else:
                     client.publish(TOPIC, ACCESS_DENIED)
-                    print("YOU HAD ENOUGH MEAL TODAY!")
+                    print("***->RETURNING....YOU HAD ENOUGH MEAL TODAY!")
+                    return
             except Exception as e:
                 print("Exception: ", e)
                 if user_profile:
                     user_transaction = Transaction(swipe_count=1,reader_uid=reader_uid,
-                                                 date=timezone.now(), user=user_profile )
+                                                 date=timezone.now(), user=user_profile)
                     user_transaction.save()
-                    # client.publish(TOPIC, ACCESS_GRANTED)
-                # if user_profile:
-                #     user_transaction = Transaction()
-                #     user_transaction.swipe_count = 1
-                #     user_transaction.reader_uid = reader_uid
-                #     user_transaction.date = timezone.now()
-                #     user_transaction.user = user_profile
+                    client.publish(TOPIC, ACCESS_GRANTED)
+                    print("***->RETURNING....Created TRANSACTION:", user_transaction)
+                    return
         else:
             client.publish(TOPIC, ACCESS_DENIED)
             print("User not found!")
     # time.sleep(2)
-    # print(f'Recieved message: {str(message.payload.decode("utf-8"))}')
 
 client.on_message = on_message
 client.subscribe(TOPIC)
