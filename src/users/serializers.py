@@ -10,52 +10,58 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ['id', 'first_name', 'last_name', 'username', 'email', 'password']
         extra_kwargs = {
             'password': {'write_only': True},
-            'id': {'read_only': True}
+            # 'id': {'read_only': True}
         }
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         instance = self.Meta.model(**validated_data)
-        if password is  None:
+        if password is None:
             raise BadRequest('Password is required!')
         instance.set_password(password)
         instance.save()
         return instance
     
     def update(self, instance, validated_data):
-        instance.first_name = validated_data.get('first_name', instance.first_name)
-        instance.last_name = instance.first_name = validated_data.get('last_name', instance.last_name)
-        instance.save()
+        password = validated_data.pop('password', None)
+        if password is not None:
+            instance.set_password(password)
+        instance.first_name = validated_data.pop('first_name', instance.first_name)
+        instance.last_name =  validated_data.pop('last_name', instance.last_name)
+        instance.save(update_fields=["first_name", "last_name",])
         return instance
     
 class UserProfileSerializer(serializers.ModelSerializer):
-    # first_name = serializers.CharField(required=True)
-    # last_name = serializers.CharField(required=True)
+    user = UserSerializer()
+    user_id = serializers.IntegerField()
     class Meta:
         model = UserProfile
-        fields = ['id', 'user', 'meal_category', 'department']
+        fields = ['id', 'user_id', 'user','meal_category', 'profile_image','department']
         extra_kwargs = {
-            'id': {'read_only': True}
+            'id': {'read_only': True},
         }
+    # def to_representation(self, instance):
+    #     representation = super().to_representation(instance)
+    #     representation['user_id'] = 'Some calculated value'  # Example
+    #     return representation
     
     def create(self, validated_data):
+        print("**** 1st Validated_data****:", validated_data)
         user = validated_data.pop('user', None) # pass  pk value as user
-        print("****Validated_data****:", validated_data)
+        user_id = validated_data.pop('user_id') #
+        print("**** 2nd Validated_data****:", validated_data)
         instance = self.Meta.model(**validated_data)
-        if user is  None:
+        if user_id is None or user is None:
             raise NotFound('User id is required!')
-        instance.user = user
+        auth_user = User.objects.get(id=user_id)
+        instance.user = auth_user
         instance.save()
         return instance
     
     def update(self, instance, validated_data):
-        user = validated_data.pop('user', None) # pass  pk value as user
-        # first_name = validated_data.pop('first_name', None)
-        # last_name = validated_data.pop('last_name', None)
+        # user = validated_data.pop('user', None) # pass  pk value as user
         instance.meal_category = validated_data.get('meal_category', instance.meal_category)
         instance.department = validated_data.get('department', instance.department)
-        # instance.user.first_name = first_name
-        # instance.user.last_name = last_name
         instance.save()
         return instance
  

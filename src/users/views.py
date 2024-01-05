@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.views import APIView
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -23,11 +24,13 @@ class LoginView(APIView):
         password = request.data["password"]
 
         user = User.objects.filter(email=email).first()
-
         if user is None:
             # raise AuthenticationFailed("User not found!")
-            return Response({"invalid_user_error": "User not found!"}, status=200)
+            return Response({"invalid_user_error": "User not found!"}, status=403)
 
+        # if user.password == 'getset123':
+        #     user.set_password(password)
+        #     user.save()
         if not user.check_password(password):
             # raise AuthenticationFailed("Incorrect password!")
             return Response({"password_error": "Incorrect password!"}, status=403)
@@ -62,13 +65,16 @@ class UserView(APIView):
         user = User.objects.filter(id=payload["id"]).first()
         user_serializer = UserSerializer(user)
         try:
-            profile = UserProfile.objects.get(user=user.pk)
+            # profile = UserProfile.objects.get(user=user.pk)
+            # profile_serialiser = UserProfileSerializer(profile)
+            profile = UserProfile.objects.select_related('user').get(user=user.pk)
             profile_serialiser = UserProfileSerializer(profile)
-            merged_data = {**profile_serialiser.data, **user_serializer.data}
-            return Response(merged_data)
-        except Exception as e:
-            print("Exception", e)
-            return Response(user_serializer.data)
+            # merged_data = {**profile_serialiser.data, **user_serializer.data}
+            return Response(data=profile_serialiser.data)
+        except UserProfile.DoesNotExist as e:
+            print("Exception:", e)
+            print("User Data:", user_serializer.data)
+            return Response(data=user_serializer.data, status=200)
 
 
 class LogoutView(APIView):
@@ -81,6 +87,33 @@ class LogoutView(APIView):
 
 class UserProfileView(APIView):
     # permission_classes = [IsAuthenticated]
+    def get(self, request, pk=None):
+        token = request.COOKIES.get("jwt")
+
+        if not token:
+            raise AuthenticationFailed("Unauthenticated!")
+
+        try:
+            jwt.decode(token, "secret", algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationFailed("Unauthenticated!")
+        
+        try:
+            if pk is not None:
+                profile = UserProfile.objects.select_related('user').get(user=pk)
+                print("Profile PK", profile)
+                profile_serialiser = UserProfileSerializer(profile)
+                return Response(data=profile_serialiser.data)
+            else:
+                profiles = UserProfile.objects.select_related('user').all()
+                profiles_serializer = UserProfileSerializer(profiles, many=True)
+                print("User:", profiles[0].user.first_name)
+                return Response(data=profiles_serializer.data)
+                
+        except UserProfile.DoesNotExist as e:
+            print("Exception", e)
+            return Response(data={"error": e.args[0]}, status=404)
+
 
     def post(self, request):
         token = request.COOKIES.get("jwt")
@@ -93,17 +126,46 @@ class UserProfileView(APIView):
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Unauthenticated!")
 
-        user = User.objects.filter(id=payload["id"]).first()
-        print("****User****:", user)
+        # auth_user = User.objects.filter(id=payload["id"]).first()
+        auth_user = User.objects.get(id=payload["id"])
+        print("****User****:", auth_user)
         # serialised_user = UserProfileSerializer(user)
-        merged_data = {**request.data, "user": user.pk}
-        serialiser = UserProfileSerializer(data=merged_data)
-        if serialiser.is_valid():
-            serialiser.save()
-            print("****Data****:", serialiser.data)
-            return Response(data=serialiser.data, status=200)
+        # merged_data = {**request.data, "user": auth_user.pk}
+        user_data = { "first_name": request.data.pop("first_name"),
+            "last_name": request.data.pop("last_name"),
+            "email": auth_user.email,"username": auth_user.username,
+            "password": auth_user.password
+            }
+        user_serialiser = UserSerializer(instance=auth_user, data=user_data)
+        
+        profile_data = {**request.data}
+        print("#####Profile Data:", profile_data)
+        profile_data["user"] = { "id": auth_user.id,
+            "email": "...", "username": "....",
+            "password": "..."
+            }
+        profile_data["user_id"] = auth_user.id
+        print('%%%%%%:', profile_data["user_id"])
+        
+        # {"id":auth_user.id}
+        
+        
+        
+        # { "id": auth_user.id,}
+        
+        profile_serialiser = UserProfileSerializer(data=profile_data)
+        if profile_serialiser.is_valid() and user_serialiser.is_valid():
+            #....this suite is a candidate for DB Transaction 
+            user_serialiser.save()
+            profile_serialiser.save()
+            print("****CreatedData****:", profile_serialiser.data)
+            created_data = {
+                **profile_serialiser.data,
+            }
+            return Response(data=created_data, status=200)
         else:
-            return Response(data=serialiser.errors, status=400)
+            # errors = [profile_serialiser.errors, user_serialiser.errors]
+            return Response(data=profile_serialiser.errors, status=400)
 
     def patch(self, request, format=None):
         token = request.COOKIES.get("jwt")
@@ -115,35 +177,34 @@ class UserProfileView(APIView):
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Unauthenticated!")
 
-        user_data = {
-            "first_name": request.data.pop("first_name", None),
-            "last_name": request.data.pop("last_name", None),
-        }
-        print("****LeanRequestData****:", request.data)
-
         auth_user = User.objects.get(id=payload["id"])
+        user_data = { "first_name": request.data.pop("first_name", auth_user.first_name),
+            "last_name": request.data.pop("last_name", auth_user.last_name),
+            "email": auth_user.email,"username": auth_user.username,
+            "password": auth_user.password
+            }
+        user_serialiser = UserSerializer(instance=auth_user, data=user_data)
+
         profile = UserProfile.objects.get(user=auth_user.pk)
-
-        auth_user.first_name = user_data["first_name"]
-        auth_user.last_name = user_data["last_name"]
-
-        profile_data = {**request.data, "user": auth_user.id}
+        profile_data = {**request.data}
+        profile_data["user"] = { "id": auth_user.id,
+            "email": "...", "username": "...",
+            "password": "..."
+            }
+        profile_data["user_id"] = auth_user.id
         print("****MergeData****:", profile_data)
-        # user_serialiser = UserSerializer(instance=auth_user,data=user_data)
         profile_serialiser = UserProfileSerializer(instance=profile, data=profile_data)
-        if profile_serialiser.is_valid():
-            auth_user.save()
+        if profile_serialiser.is_valid() and user_serialiser.is_valid():
+            user_serialiser.save()
             profile_serialiser.save()
-            # merged_data = {**profile_serialiser.data, **user_serialiser.data}
             print("****UpdateData****:", profile_serialiser.data)
             updated_data = {
                 **profile_serialiser.data,
-                "first_name": auth_user.first_name,
-                "last_name": auth_user.last_name,
             }
             return Response(data=updated_data, status=200)
         else:
-            return Response(data=profile_serialiser.errors, status=400)
+            print("Profile PATCH ERROR: ", profile_serialiser.errors)
+            return Response(data=profile_serialiser.errors, status=500)
 
 
 class UploadProfileImageView(APIView):
