@@ -1,8 +1,19 @@
 import os
+import random
+from uuid import uuid4
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from uuid import uuid4
 
+from django.dispatch import receiver
+from django.db.models.signals import post_save
+import paho.mqtt.client as mqtt
+import paho.mqtt.publish as mqtt_publish
+
+
+def generate_uid():
+    random_string = "".join(random.choices("0123456789", k=10))
+    print(random_string)
+    return random_string
 
 def upload_image(instance,filename ):
     return os.path.join('images', 'avatars', str(instance.pk), filename)
@@ -20,12 +31,12 @@ class User(AbstractUser):
 class UserProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    reader_uid = models.CharField(max_length=128)
+    reader_uid = models.CharField(max_length=128, default=generate_uid, unique=True)
     profile_image = models.ImageField(upload_to=upload_image, blank=True, null=True)
     meal_category = models.PositiveSmallIntegerField(default=1)
     department = models.CharField(max_length=225)
 
     def __str__(self) -> str:
         return self.user.username
-    
+
     

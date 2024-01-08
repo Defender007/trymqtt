@@ -51,7 +51,7 @@ class LoginView(APIView):
 
 
 class UserView(APIView):
-    def get(self, request):
+    def get(self, request, pk=None):
         token = request.COOKIES.get("jwt")
 
         if not token:
@@ -126,32 +126,23 @@ class UserProfileView(APIView):
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Unauthenticated!")
 
-        # auth_user = User.objects.filter(id=payload["id"]).first()
         auth_user = User.objects.get(id=payload["id"])
         print("****User****:", auth_user)
-        # serialised_user = UserProfileSerializer(user)
-        # merged_data = {**request.data, "user": auth_user.pk}
         user_data = { "first_name": request.data.pop("first_name"),
             "last_name": request.data.pop("last_name"),
             "email": auth_user.email,"username": auth_user.username,
             "password": auth_user.password
             }
+        ###...Update related User before creating Profile 
         user_serialiser = UserSerializer(instance=auth_user, data=user_data)
-        
         profile_data = {**request.data}
         print("#####Profile Data:", profile_data)
         profile_data["user"] = { "id": auth_user.id,
-            "email": "...", "username": "....",
+            "email": "...", "username": "...",
             "password": "..."
             }
         profile_data["user_id"] = auth_user.id
         print('%%%%%%:', profile_data["user_id"])
-        
-        # {"id":auth_user.id}
-        
-        
-        
-        # { "id": auth_user.id,}
         
         profile_serialiser = UserProfileSerializer(data=profile_data)
         if profile_serialiser.is_valid() and user_serialiser.is_valid():
@@ -164,8 +155,8 @@ class UserProfileView(APIView):
             }
             return Response(data=created_data, status=200)
         else:
-            # errors = [profile_serialiser.errors, user_serialiser.errors]
-            return Response(data=profile_serialiser.errors, status=400)
+            errors = [profile_serialiser.errors, user_serialiser.errors]
+            return Response(data=errors, status=500)
 
     def patch(self, request, format=None):
         token = request.COOKIES.get("jwt")
