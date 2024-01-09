@@ -24,7 +24,7 @@ class TransactionSerializer(serializers.ModelSerializer):
             "grant_type",
             "owner_id",
             "authorizer_id",
-            "date"
+            "date",
         ]
 
     def create(self, validated_data):

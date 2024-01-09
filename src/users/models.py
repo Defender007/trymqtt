@@ -4,14 +4,9 @@ from uuid import uuid4
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
-from django.dispatch import receiver
-from django.db.models.signals import post_save
-import paho.mqtt.client as mqtt
-import paho.mqtt.publish as mqtt_publish
-
 
 def generate_uid():
-    random_string = "".join(random.choices("0123456789", k=10))
+    random_string = "".join(random.choices("0123456789ABCDEFGHIJKLMNPRSTVWXYZ", k=10))
     print(random_string)
     return random_string
 

@@ -23,7 +23,14 @@ class TransactionView(APIView):
             payload = jwt.decode(token, "secret", algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Unauthenticated!")
-        _ = User.objects.filter(id=payload["id"]).first()
+        _user = User.objects.filter(id=payload["id"]).first()
+        if not _user.is_superuser:
+            return Response(
+                data={
+                    "error": "User is not an Admin!",
+                },
+                status=400,
+            )
         transactions = Transaction.objects.all()
         serializer = TransactionSerializer(transactions, many=True)
         return Response(data=serializer.data)
@@ -38,6 +45,14 @@ class TransactionView(APIView):
             payload = jwt.decode(token, "secret", algorithms=["HS256"])
         except jwt.ExpiredSignatureError:
             raise AuthenticationFailed("Unauthenticated!")
+        _user = User.objects.filter(id=payload["id"]).first()
+        if not _user.is_superuser:
+            return Response(
+                data={
+                    "error": "User is not an Admin!",
+                },
+                status=400,
+            )
         try:
             today = timezone.now().date()
             authorizer = UserProfile.objects.get(user=payload["id"])
@@ -52,10 +67,6 @@ class TransactionView(APIView):
                 date__date=today,
             )
             if today_transaction.first() is None:
-                print(
-                    "################################TODAY'S TRANSACTION IS NONE:",
-                    today_transaction,
-                )
                 raise ObjectDoesNotExist("No transaction exists yet for this owner")
 
             owner_profile_data = {
