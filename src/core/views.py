@@ -5,53 +5,44 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import generics, permissions, status
 from rest_framework.exceptions import AuthenticationFailed
 from .serializers import TransactionSerializer
 from .models import Transaction
 from users.models import User, UserProfile
+from users.auth_service import user_auth
 
 
 # Create your views here.
 class TransactionView(APIView):
     def get(self, request, pk=None):
-        token = request.COOKIES.get("jwt")
-
-        if not token:
-            raise AuthenticationFailed("Unauthenticated!")
-
-        try:
-            payload = jwt.decode(token, "secret", algorithms=["HS256"])
-        except jwt.ExpiredSignatureError:
-            raise AuthenticationFailed("Unauthenticated!")
+        print("####### Transaction Requet:", request)
+        payload = user_auth(request)
+        if payload.get("auth_error", None):
+            return Response(payload, status=status.HTTP_403_FORBIDDEN)
         _user = User.objects.filter(id=payload["id"]).first()
         if not _user.is_superuser:
             return Response(
                 data={
                     "error": "User is not an Admin!",
                 },
-                status=400,
+                status=status.HTTP_401_UNAUTHORIZED,
             )
         transactions = Transaction.objects.all()
         serializer = TransactionSerializer(transactions, many=True)
         return Response(data=serializer.data)
 
     def post(self, request):
-        token = request.COOKIES.get("jwt")
-
-        if not token:
-            raise AuthenticationFailed("Unauthenticated!")
-
-        try:
-            payload = jwt.decode(token, "secret", algorithms=["HS256"])
-        except jwt.ExpiredSignatureError:
-            raise AuthenticationFailed("Unauthenticated!")
+        payload = user_auth(request)
+        if payload.get("auth_error", None):
+            return Response(payload, status=status.HTTP_403_FORBIDDEN)
         _user = User.objects.filter(id=payload["id"]).first()
         if not _user.is_superuser:
             return Response(
                 data={
                     "error": "User is not an Admin!",
                 },
-                status=400,
+                status=status.HTTP_401_UNAUTHORIZED,
             )
         try:
             today = timezone.now().date()
@@ -106,11 +97,11 @@ class TransactionView(APIView):
                     transaction_serializer.save()
                     return Response(data=transaction_serializer.data)
                 else:
-                    return Response(data=transaction_serializer.errors, status=400)
+                    return Response(data=transaction_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             else:
                 return Response(
                     data={"error": "ACCESS DENIED. YOU HAD ENOUGH MEAL TODAY!"},
-                    status=400,
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
         except User.DoesNotExist:
             raise NotFound("ACCESS DENIED. User not found!")
@@ -156,4 +147,5 @@ class TransactionView(APIView):
                 transaction_serializer.save()
                 return Response(data=transaction_serializer.data)
             else:
-                return Response(data=transaction_serializer.errors, status=400)
+                return Response(data=transaction_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

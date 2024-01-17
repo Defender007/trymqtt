@@ -24,7 +24,8 @@ class User(AbstractUser):
 
 
 class UserProfile(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    pkid = models.BigAutoField(primary_key=True, editable=False)
+    id = models.UUIDField(default=uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     reader_uid = models.CharField(max_length=128, default=generate_uid, unique=True)
     profile_image = models.ImageField(upload_to=upload_image, blank=True, null=True)
