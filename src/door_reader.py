@@ -17,14 +17,16 @@ reader_data = {
     "door": "esp-rfid",
 }
 payload = json.dumps(reader_data)
-# mqtt_broker = 'mqtt.eclipseprojects.io'
 mqtt_broker = "broker.hivemq.com"
 client = mqtt.Client("Cafeteria")
 client.connect(mqtt_broker)
 
-while True:
-    client.publish(TOPIC, payload)
-    print(f"Just published {payload} to topic {TOPIC}")
-    time.sleep(5)
+try:
+    while True:
+        client.publish(TOPIC, payload)
+        print(f"Just published {payload} to topic {TOPIC}")
+        time.sleep(15)
+except KeyboardInterrupt:
+    print(" \n Ctrl + C pressed!")
 
 # client.disconnect()

@@ -2,7 +2,9 @@ import jwt, datetime
 import json
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.decorators import api_view, renderer_classes
 from rest_framework.exceptions import NotFound
+from rest_framework.renderers import JSONRenderer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, permissions, status
@@ -16,7 +18,7 @@ from users.auth_service import user_auth
 # Create your views here.
 class TransactionView(APIView):
     def get(self, request, pk=None):
-        print("####### Transaction Requet:", request)
+        NOT_ADMIN = "User is not an Admin!"
         payload = user_auth(request)
         if payload.get("auth_error", None):
             return Response(payload, status=status.HTTP_403_FORBIDDEN)
@@ -24,7 +26,7 @@ class TransactionView(APIView):
         if not _user.is_superuser:
             return Response(
                 data={
-                    "error": "User is not an Admin!",
+                    "error": NOT_ADMIN,
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
@@ -33,6 +35,10 @@ class TransactionView(APIView):
         return Response(data=serializer.data)
 
     def post(self, request):
+        ACCESS_GRANTED = "ACCESS GRANTED"
+        ACCESS_DENIED = "ACCESS DENIED"
+        ACCESS_POINT = "REMOTE"
+
         payload = user_auth(request)
         if payload.get("auth_error", None):
             return Response(payload, status=status.HTTP_403_FORBIDDEN)
@@ -52,12 +58,12 @@ class TransactionView(APIView):
                 user__username=request_data["username"], reader_uid=request_data["uid"]
             )
 
-            today_transaction = Transaction.objects.filter(
+            today_transactions = Transaction.objects.filter(
                 reader_uid=request_data["uid"],
-                grant_type="ACCESS GRANTED",
+                grant_type=ACCESS_GRANTED,
                 date__date=today,
             )
-            if today_transaction.first() is None:
+            if today_transactions.first() is None:
                 raise ObjectDoesNotExist("No transaction exists yet for this owner")
 
             owner_profile_data = {
@@ -76,8 +82,8 @@ class TransactionView(APIView):
                 # "profile_image": "...",
                 "department": "...",
             }
-            transaction_count = today_transaction.count()
-            meal_category = today_transaction.first().owner.meal_category
+            transaction_count = today_transactions.count()
+            meal_category = today_transactions.first().owner.meal_category
             SWIPE_COUNT = transaction_count
             if SWIPE_COUNT < meal_category:
                 SWIPE_COUNT += 1
@@ -86,19 +92,40 @@ class TransactionView(APIView):
                     "authorizer": request_user_profile_data,
                     "swipe_count": SWIPE_COUNT,
                     "reader_uid": request_data["uid"],
-                    "access_point": "REMOTE",
+                    "access_point": ACCESS_POINT,
                     "raw_payload": json.dumps(request_data),
                     "grant_type": "ACCESS GRANTED",
                     "owner_id": card_owner.id,
                     "authorizer_id": authorizer.id,
                 }
+
                 transaction_serializer = TransactionSerializer(data=transaction_data)
                 if transaction_serializer.is_valid():
                     transaction_serializer.save()
                     return Response(data=transaction_serializer.data)
                 else:
-                    return Response(data=transaction_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            else:
+                    return Response(
+                        data=transaction_serializer.errors,
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            if SWIPE_COUNT >= meal_category:
+                today_transactions = Transaction.objects.filter(
+                    reader_uid=request_data["uid"],
+                    date__date=today,
+                )
+                transaction_count = today_transactions.count()
+                NEW_SWIPE_COUNT = transaction_count + 1
+                transaction_data = {
+                    "owner": owner_profile_data,
+                    "authorizer": request_user_profile_data,
+                    "swipe_count": NEW_SWIPE_COUNT,
+                    "reader_uid": request_data["uid"],
+                    "access_point": ACCESS_POINT,
+                    "raw_payload": json.dumps(request_data),
+                    "grant_type": ACCESS_DENIED,
+                    "owner_id": card_owner.id,
+                    "authorizer_id": authorizer.id,
+                }
                 return Response(
                     data={"error": "ACCESS DENIED. YOU HAD ENOUGH MEAL TODAY!"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -135,9 +162,9 @@ class TransactionView(APIView):
                 "authorizer": request_user_profile_data,
                 "swipe_count": SWIPE_COUNT,
                 "reader_uid": request_data["uid"],
-                "access_point": "REMOTE",
+                "access_point": ACCESS_POINT,
                 "raw_payload": json.dumps(request_data),
-                "grant_type": "ACCESS GRANTED",
+                "grant_type": ACCESS_GRANTED,
                 "owner_id": card_owner.id,
                 "authorizer_id": authorizer.id,
             }
@@ -147,5 +174,56 @@ class TransactionView(APIView):
                 transaction_serializer.save()
                 return Response(data=transaction_serializer.data)
             else:
-                return Response(data=transaction_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    data=transaction_serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
+
+@api_view(["GET", "POST"])
+def get_owner_transaction_details(request, pk=None):
+    payload = user_auth(request)
+    if payload.get("auth_error", None):
+        return Response(payload, status=status.HTTP_403_FORBIDDEN)
+    _user = User.objects.filter(id=payload["id"]).first()
+    if not _user.is_superuser or not _user.is_staff:
+        return Response(
+            data={
+                "error": "User is not an Admin!",
+            },
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+    if not request.data:
+        return Response(data={"NO PAYLOAD!"}, status=status.HTTP_400_BAD_REQUEST)
+    if request.method == "POST":
+        ACCESS_GRANTED = "ACCESS GRANTED"
+        request_data = {**request.data}
+        # get today's transaction based on grant type and uid
+        today = timezone.now().date()
+        transactions = Transaction.objects.filter(
+            reader_uid=request_data["uid"], date__date=today
+        )
+        if transactions.count() == 0:
+            return Response(data={"NO TRANSACTION MATCH!"}, status=status.HTTP_200_OK)
+        approved_transaction_counts = transactions.filter(
+            grant_type=ACCESS_GRANTED,
+        ).count()
+        last_transaction = transactions.last()
+        serializer = TransactionSerializer(last_transaction)
+        meal_category = serializer.data["owner"]["meal_category"]
+        username = serializer.data["owner"]["user"]["username"]
+        balance = meal_category - approved_transaction_counts
+        avatar = serializer.data["owner"]["profile_image"]
+        grant_type = serializer.data["grant_type"]
+        response_data = {
+            "meal_category": meal_category,
+            "used_count": approved_transaction_counts,
+            "balance": balance,
+            "username": username,
+            "avatar": avatar,
+            "grant_type": grant_type,
+        }
+        return Response(data=response_data, status=status.HTTP_200_OK)
+    return Response(data={_user.username}, status=status.HTTP_200_OK)
+
+    # {"meal_category": 5, "used": 1, "balance": 4, "username": "", "avatar": ""}
