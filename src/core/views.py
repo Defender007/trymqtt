@@ -13,10 +13,36 @@ from .serializers import TransactionSerializer
 from .models import Transaction
 from users.models import User, UserProfile
 from users.auth_service import user_auth
+from .reports import report
 
 
 # Create your views here.
 class TransactionView(APIView):
+    def get_queryset(self):
+        report_type = self.request.query_params.get("report-type", None)
+        sort_option = self.request.query_params.get("sort-option", None)
+        if report_type == "":
+            report_type = None
+        if sort_option == "":
+            sort_option = None
+        print("0: @@@@@@@@@@@@@@", report_type, sort_option)
+        if report_type is not None and sort_option is not None:
+            return report(
+                report=report_type.lower(),
+                sort_by=sort_option.lower(),
+            )
+        if report_type is not None and sort_option is None:
+            return report(report=report_type.lower())
+        
+        if report_type is None and sort_option is not None:
+            print("3: @@@@@@@@@@@@@@", report_type, sort_option.lower())
+            return report(sort_by=sort_option.lower())
+
+        if report_type is None and sort_option is None:
+            print("4@@@@@@@@@@@@@@", report_type, sort_option)
+            return report()
+        return Transaction.objects.filter().order_by(sort_option)
+
     def get(self, request, pk=None):
         NOT_ADMIN = "User is not an Admin!"
         payload = user_auth(request)
@@ -30,7 +56,7 @@ class TransactionView(APIView):
                 },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-        transactions = Transaction.objects.all()
+        transactions = self.get_queryset()
         serializer = TransactionSerializer(transactions, many=True)
         return Response(data=serializer.data)
 

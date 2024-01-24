@@ -1,5 +1,5 @@
 import json
-
+import random
 
 def pubilsh_data(grant: str, uid: str = ""):
     grant_data = {
@@ -8,14 +8,12 @@ def pubilsh_data(grant: str, uid: str = ""):
     }
     return grant_data
 
-
 def is_json(data):
     try:
         json.loads(data)
         return True
     except ValueError:
         return False
-
 
 def is_card_reader_json(data):
     try:
@@ -26,3 +24,7 @@ def is_card_reader_json(data):
             return False
     except ValueError:
         return False
+
+def generate_uid():
+    random_string = "".join(random.choices("0123456789ABCDEFGHIJKLMNPRSTVWXYZ", k=10))
+    return random_string

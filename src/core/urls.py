@@ -5,7 +5,7 @@ from .views import TransactionView,get_owner_transaction_details
 
 urlpatterns = [
     path(
-        "transactions",
+        "transactions/",
         TransactionView.as_view(),
         name="transaction_list_api_view",
     ),

@@ -47,12 +47,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "id",
             "user_id",
             "user",
+            "reader_uid",
             "meal_category",
             "profile_image",
             "department",
         ]
         extra_kwargs = {
             "id": {"read_only": True},
+            "reader_uid": {"read_only": True},
         }
 
     def create(self, validated_data):
