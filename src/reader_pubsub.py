@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 import paho.mqtt.client as mqtt
 import uuid
 import json
-from utils.utils import pubilsh_data, is_card_reader_json
+from utils.utils import publish_data, is_card_reader_json
 
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mealmanager.settings")

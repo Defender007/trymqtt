@@ -4,7 +4,7 @@ from .views import (RegisterView,
                     AuthUserView, 
                     LogoutView,
                     UserProfileView, 
-                    UploadProfileImageView,)
+                    UploadProfileImageView, bulk_create)
 
 urlpatterns = [
     path('register', RegisterView.as_view(), name='register_api_view'),
@@ -14,4 +14,5 @@ urlpatterns = [
     path('profiles/users/<int:pk>', UserProfileView.as_view(), name='profile_get_update_delete_api_view'),
     path('profiles', UserProfileView.as_view(), name='profiles_list_create_api_view'),
     path('avatar', UploadProfileImageView.as_view(), name='avatar_api_view'),
+    path('batch-loader', bulk_create, name='bulk_create_api_view'),
 ]

@@ -5,7 +5,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save
 import paho.mqtt.publish as mqtt_publish
 from users.models import UserProfile
-from utils.utils import pubilsh_data, is_card_reader_json
+from utils.utils import publish_data, is_card_reader_json
 
 # Create your models here.
 
@@ -22,7 +22,7 @@ class Transaction(models.Model):
     )
     access_point = models.CharField(max_length=25)
     raw_payload = models.JSONField()
-    door = models.CharField(max_length=128)
+    door = models.CharField(max_length=128, blank=True, null=True)
     grant_type = models.CharField(max_length=25)
 
     def __str__(self):
@@ -43,14 +43,14 @@ def on_save_signal_event(*args, **kwargs):
     reader_uid = kwargs["instance"].reader_uid
     try:
         if grant_type == ACCESS_GRANTED:
-            data = json.dumps(pubilsh_data(ACCESS_GRANTED, uid=reader_uid))
+            data = json.dumps(publish_data(ACCESS_GRANTED, uid=reader_uid))
             mqtt_publish.single(
                 TOPIC,
                 payload=data,
                 hostname=mqtt_broker,
             )
         if grant_type == ACCESS_DENIED:
-            data = json.dumps(pubilsh_data(ACCESS_DENIED, uid=reader_uid))
+            data = json.dumps(publish_data(ACCESS_DENIED, uid=reader_uid))
             mqtt_publish.single(
                 TOPIC,
                 payload=data,

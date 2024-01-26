@@ -40,6 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer()
     user_id = serializers.IntegerField()
+    reader_uid = serializers.CharField()
 
     class Meta:
         model = UserProfile
@@ -75,6 +76,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         instance.meal_category = validated_data.get(
             "meal_category", instance.meal_category
         )
+        # instance.reader_uid = validated_data.get(
+        #     "reader_uid", instance.reader_uid
+        # )
         instance.department = validated_data.get("department", instance.department)
         instance.save()
         return instance

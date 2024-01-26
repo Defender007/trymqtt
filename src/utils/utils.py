@@ -1,7 +1,7 @@
 import json
 import random
 
-def pubilsh_data(grant: str, uid: str = ""):
+def publish_data(grant: str, uid: str = ""):
     grant_data = {
         "grant_type": grant,
         "uid": uid,
