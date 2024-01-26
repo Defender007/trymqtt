@@ -113,7 +113,7 @@ class UserProfileView(APIView):
             "password": auth_user.password,
         }
         ###...Update related User before creating Profile
-        user_serialiser = UserSerializer(instance=auth_user, data=user_data)
+        user_serializer = UserSerializer(instance=auth_user, data=user_data)
         profile_data = {**request.data}
         print("#####Profile Data:", profile_data)
         profile_data["user"] = {
@@ -127,9 +127,9 @@ class UserProfileView(APIView):
         print("%%%%%%:", profile_data["user_id"])
 
         profile_serialiser = UserProfileSerializer(data=profile_data)
-        if profile_serialiser.is_valid() and user_serialiser.is_valid():
+        if profile_serialiser.is_valid() and user_serializer.is_valid():
             # ....this suite is a candidate for DB Transaction
-            user_serialiser.save()
+            user_serializer.save()
             profile_serialiser.save()
             print("****CreatedData****:", profile_serialiser.data)
             created_data = {
@@ -138,8 +138,8 @@ class UserProfileView(APIView):
             return Response(data=created_data, status=status.HTTP_200_OK)
         else:
             profile_serialiser.is_valid()
-            user_serialiser.is_valid()
-            errors = [profile_serialiser.errors, user_serialiser.errors]
+            user_serializer.is_valid()
+            errors = [profile_serialiser.errors, user_serializer.errors]
             return Response(data=errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def patch(self, request, format=None):
